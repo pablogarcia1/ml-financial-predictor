@@ -91,19 +91,17 @@ def load_raw(ticker: str) -> pd.DataFrame:
 
 def ingest(ticker: str, start: str = "2015-01-01", end: str = None) -> pd.DataFrame:
     """
-    Función principal: descarga, construye target y guarda.
-    Si no se especifica end, usa la fecha de hoy.
+    Guarda OHLCV puro en raw (sin target, sin eliminar filas).
+    El target se construye después en el pipeline de entrenamiento.
     """
     if end is None:
         end = str(date.today())
 
     df = download_ohlcv(ticker, start, end)
-    df = build_target(df, horizon=10)
-    save_raw(df, ticker)
+    save_raw(df, ticker)           # guarda OHLCV puro hasta hoy ✅
     return df
 
 
-# ── Prueba rápida ──────────────────────────────────────────────────────────────
 if __name__ == "__main__":
     df = ingest("AAPL")
     print("\nPrimeras filas:")
