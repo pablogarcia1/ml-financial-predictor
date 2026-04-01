@@ -1,0 +1,39 @@
+# ==========================================
+# Python y Entornos Virtuales
+# ==========================================
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+env/
+.env
+
+# ==========================================
+# Datos
+# ==========================================
+data/raw/*
+data/processed/*
+*.parquet
+*.csv
+
+
+# ==========================================
+# MLflow
+# ==========================================
+mlruns/
+mlflow.db
+*.pkl
+*.skops
+
+# ==========================================
+# Jupyter Notebooks
+# ==========================================
+.ipynb_checkpoints/
+
+# ==========================================
+# IDEs y Sistema Operativo
+# ==========================================
+.idea/      # Evita subir la configuración de tu PyCharm
+.vscode/
+.DS_Store   # Si alguien lo abre en Mac
+Thumbs.db   # Archivos basura de Windows
