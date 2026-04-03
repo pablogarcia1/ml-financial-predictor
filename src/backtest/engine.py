@@ -257,4 +257,4 @@ if __name__ == "__main__":
     test_spy = test_df[test_df["ticker"] == "SPY"]
 
     print(f"\nBacktest sobre SPY ({test_spy.index[0].date()} → {test_spy.index[-1].date()})")
-    results = run_backtest(model, test_spy, buy_threshold=0.55, sell_threshold=0.45)
+    results = run_backtest(model, test_spy, buy_threshold=0.50, sell_threshold=0.45)
