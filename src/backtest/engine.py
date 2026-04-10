@@ -153,21 +153,18 @@ def compute_metrics(trades_df: pd.DataFrame) -> dict:
 
 
 def benchmark_returns(signals: pd.DataFrame, horizon: int = 10) -> dict:
-    """
-    Calcula el retorno de la estrategia Buy & Hold como benchmark.
-    Compra al inicio del test y vende al final.
-    """
-    start_price = signals["close"].iloc[0]
-    end_price   = signals["close"].iloc[-1]
-    log_return  = np.log(end_price / start_price)
+    close = signals["close"]
 
-    # Número de períodos de 10 días en el test
-    n_periods = len(signals) / horizon
-    sharpe    = (log_return / n_periods) / (signals["close"].pct_change().std() * np.sqrt(252 / 10))
+    # Retorno acumulado
+    log_return = np.log(close.iloc[-1] / close.iloc[0])
+
+    # Retornos diarios para el Sharpe
+    daily_returns = np.log(close / close.shift(1)).dropna()
+    sharpe = (daily_returns.mean() / daily_returns.std()) * np.sqrt(252)
 
     return {
         "cumulative_return": round(np.expm1(log_return) * 100, 2),
-        "sharpe_ratio":      round(sharpe, 4),
+        "sharpe_ratio": round(sharpe, 4),
     }
 
 
@@ -218,12 +215,150 @@ def run_backtest(model, test_df: pd.DataFrame,
     benchmark = benchmark_returns(signals, horizon)
 
     print_results(metrics, benchmark)
-    if len(trades) == 0:
-        print("  Sin operaciones — prueba bajando el buy_threshold")
-        return {}
 
     return {"metrics": metrics, "benchmark": benchmark, "trades": trades}
 
+def monte_carlo_significance(model,
+                              test_df: pd.DataFrame,
+                              real_sharpe: float,
+                              n_simulations: int = 1000,
+                              buy_threshold: float = 0.52,
+                              horizon: int = 10,
+                              save_plot: bool = True) -> dict:
+    """
+    Prueba de significancia estadística via Simulación Monte Carlo.
+
+    Genera N distribuciones de Sharpe aleatorias y compara contra
+    el Sharpe real del modelo para calcular Z-Score y P-Value.
+
+    Args:
+        model:          modelo entrenado (no se usa para las simulaciones)
+        test_df:        DataFrame del período de test con columna 'Close'
+        real_sharpe:    Sharpe ratio real obtenido por el modelo
+        n_simulations:  número de simulaciones aleatorias (default: 1000)
+        buy_threshold:  umbral de activación de señal (default: 0.52)
+        horizon:        días de holding por operación (default: 10)
+        save_plot:      guardar gráfico en disco (default: True)
+
+    Returns:
+        dict con z_score, p_value, mean_random, std_random
+    """
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    from scipy import stats
+
+    print(f"\nEjecutando Monte Carlo ({n_simulations} simulaciones)...")
+
+    # ── Retornos logarítmicos reales del mercado ───────────────────────────────
+    close       = test_df["Close"].values
+    # Usamos saltos continuos (::) para que los retornos no se solapen
+    log_returns = np.log(close[horizon::horizon] / close[::horizon][:-1])
+    n           = len(log_returns)
+
+    # ── Vectorización matricial: N simulaciones x T señales ───────────────────
+    # Genera matriz de señales aleatorias U(0,1) → shape (n_simulations, n)
+    random_probas = np.random.uniform(0, 1, size=(n_simulations, n))
+
+    # Convierte a señales binarias usando el umbral
+    # 1 = BUY, 0 = HOLD  →  shape (n_simulations, n)
+    random_signals = (random_probas > buy_threshold).astype(float)
+
+    # Cruza señales con retornos reales
+    # Señal en t-1 con retorno en t (causalidad temporal)
+    # shape: (n_simulations, n-1)
+    signals_t     = random_signals[:, :-1]   # señales en t
+    returns_t1    = log_returns[1:]           # retornos en t+1
+
+    # Retornos de cada simulación: solo donde hay señal BUY
+    # shape: (n_simulations, n-1)
+    strategy_returns = signals_t * returns_t1
+    sharpe_distribution = np.zeros(n_simulations)
+
+    active_fraction = signals_t.mean(axis=1)  # % días con BUY por simulación
+    means = (strategy_returns.sum(axis=1) /
+             signals_t.sum(axis=1).clip(min=1))  # media solo sobre activos
+
+    # Varianza solo sobre días activos usando fórmula matricial
+    squared = strategy_returns ** 2
+    variance = (squared.sum(axis=1) / signals_t.sum(axis=1).clip(min=1)) - means ** 2
+    stds_adj = np.sqrt(variance.clip(min=0))
+
+    valid = stds_adj > 0
+    sharpe_distribution[valid] = (means[valid] / stds_adj[valid]) * np.sqrt(252 / horizon)
+
+    # ── Z-Score y P-Value (cola derecha) ──────────────────────────────────────
+    mu_rand    = sharpe_distribution.mean()
+    std_rand   = sharpe_distribution.std()
+    z_score    = (real_sharpe - mu_rand) / std_rand
+    p_value    = 1 - stats.norm.cdf(z_score)  # cola derecha
+
+    # ── Resultados ─────────────────────────────────────────────────────────────
+    print(f"\n{'═'*55}")
+    print(f"  PRUEBA DE SIGNIFICANCIA ESTADÍSTICA (Monte Carlo)")
+    print(f"{'═'*55}")
+    print(f"  Simulaciones:          {n_simulations}")
+    print(f"  Sharpe real del modelo: {real_sharpe:.4f}")
+    print(f"  Sharpe medio aleatorio: {mu_rand:.4f}")
+    print(f"  Desv. estándar:         {std_rand:.4f}")
+    print(f"  {'─'*53}")
+    print(f"  Z-Score:                {z_score:.4f}")
+    print(f"  P-Value (cola derecha): {p_value:.4f}")
+
+    if p_value < 0.01:
+        verdict = "MUY SIGNIFICATIVO  (p < 0.01) — señal real"
+    elif p_value < 0.05:
+        verdict = "SIGNIFICATIVO      (p < 0.05) — señal real"
+    elif p_value < 0.10:
+        verdict = "MARGINAL          (p < 0.10) — señal débil"
+    else:
+        verdict = "NO SIGNIFICATIVO   (p >= 0.10) — posible ruido"
+
+    print(f"  Veredicto:              {verdict}")
+    print(f"{'═'*55}")
+
+    # ── Gráfico ────────────────────────────────────────────────────────────────
+    fig, ax = plt.subplots(figsize=(10, 6))
+
+    ax.hist(sharpe_distribution, bins=50, color="#2E75B6", alpha=0.7,
+            edgecolor="white", label=f"Distribución aleatoria\n"
+                                     f"μ={mu_rand:.3f}, σ={std_rand:.3f}")
+
+    ax.axvline(real_sharpe, color="#E74C3C", linewidth=2.5, linestyle="--",
+               label=f"Modelo real: {real_sharpe:.3f}\n"
+                     f"Z={z_score:.3f} | P={p_value:.4f}\n"
+                     f"{verdict}")
+
+    # Área de la cola derecha (Corregida)
+    ax.axvspan(real_sharpe, sharpe_distribution.max() + 1, alpha=0.15, color="#E74C3C")
+
+    ax.set_xlabel("Sharpe Ratio", fontsize=12)
+    ax.set_ylabel("Frecuencia", fontsize=12)
+    ax.set_title(f"Monte Carlo — Distribución de Sharpe Aleatorio\n"
+                 f"N={n_simulations} simulaciones | Umbral BUY > {buy_threshold}",
+                 fontsize=13)
+    ax.legend(fontsize=10, loc="upper left")
+    ax.grid(alpha=0.3)
+
+    plt.tight_layout()
+
+    if save_plot:
+        plot_path = ROOT_DIR / "monitoring" / "monte_carlo.png"
+        plot_path.parent.mkdir(exist_ok=True)
+        plt.savefig(plot_path, dpi=150)
+        print(f"\n  Gráfico guardado en {plot_path}")
+
+    plt.close()
+
+    return {
+        "real_sharpe":   real_sharpe,
+        "mean_random":   round(mu_rand, 4),
+        "std_random":    round(std_rand, 4),
+        "z_score":       round(z_score, 4),
+        "p_value":       round(p_value, 4),
+        "n_simulations": n_simulations,
+        "verdict":       verdict
+    }
 
 # ── Prueba rápida ──────────────────────────────────────────────────────────────
 if __name__ == "__main__":
@@ -250,11 +385,26 @@ if __name__ == "__main__":
     X_val,   y_val   = get_features(val_df)
 
     # Entrenar XGBoost
+    # Entrenar XGBoost
     print("Entrenando modelo para backtest...")
     model = train_xgboost(X_train, y_train, X_val, y_val)
 
-    # Usar solo SPY para el backtest (un ticker limpio)
-    test_spy = test_df[test_df["ticker"] == "SPY"]
+    # 🚨 LA PRUEBA DE FUEGO: Extraer 2022 del set de VALIDACIÓN 🚨
+    val_spy_2022 = val_df[(val_df["ticker"] == "SPY") &
+                          (val_df.index >= "2022-01-01") &
+                          (val_df.index <= "2022-12-31")]
 
-    print(f"\nBacktest sobre SPY ({test_spy.index[0].date()} → {test_spy.index[-1].date()})")
-    results = run_backtest(model, test_spy, buy_threshold=0.50, sell_threshold=0.45)
+    print(f"\nBacktest sobre SPY BEAR MARKET ({val_spy_2022.index[0].date()} → {val_spy_2022.index[-1].date()})")
+
+    THRESHOLD = 0.55
+    results = run_backtest(model, val_spy_2022, buy_threshold=THRESHOLD, sell_threshold=0.45)
+
+    if results:
+        monte_carlo_significance(
+            model=model,
+            test_df=val_spy_2022,
+            real_sharpe=results["metrics"]["sharpe_ratio"],
+            n_simulations=1000,
+            buy_threshold=THRESHOLD,
+            horizon=10
+        )
