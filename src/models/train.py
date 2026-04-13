@@ -90,7 +90,7 @@ def load_multiple(tickers: list) -> pd.DataFrame:
 def evaluate(model, X, y, split_name: str) -> dict:
     """Calcula métricas de clasificación para un conjunto."""
     proba = model.predict_proba(X)[:, 1]
-    pred  = (proba >= 0.5).astype(int)
+    pred  = (proba >= 0.55).astype(int)
 
     metrics = {
         f"{split_name}_roc_auc":   round(roc_auc_score(y, proba), 4),
@@ -118,7 +118,8 @@ def train_random_forest(X_train, y_train) -> RandomForestClassifier:
         max_features=0.5,
         class_weight="balanced",
         random_state=42,
-        n_jobs=-1
+        n_jobs=-1,
+        max_samples=0.1
     )
     model.fit(X_train, y_train
 
@@ -136,9 +137,9 @@ def train_xgboost(X_train, y_train, X_val, y_val):
         n_estimators=200,
         max_depth=2,  # antes: 4 → árboles muy superficiales
         learning_rate=0.01,  # antes: 0.05 → aprende más lento y conservador
-        subsample=0.6,  # antes: 0.8 → más ruido intencional
+        subsample=0.1,  # antes: 0.8 → más ruido intencional
         colsample_bytree=0.6,  # antes: 0.8 → menos features por árbol
-        min_child_weight=30,  # nuevo → mínimo de ejemplos por hoja
+        min_child_weight=30,  #
         reg_alpha=0.1,  # nuevo → regularización L1
         reg_lambda=1.0,  # nuevo → regularización L2
         scale_pos_weight=scale,
@@ -149,8 +150,7 @@ def train_xgboost(X_train, y_train, X_val, y_val):
     )
     model.fit(
         X_train, y_train,
-
-        eval_set=[(X_train, y_train)],
+        eval_set=[(X_val, y_val)],
         verbose=False
     )
     return model
