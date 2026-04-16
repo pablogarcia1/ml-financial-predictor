@@ -224,7 +224,9 @@ def monte_carlo_significance(model,
                               n_simulations: int = 1000,
                               buy_threshold: float = 0.52,
                               horizon: int = 10,
-                              save_plot: bool = True) -> dict:
+                              save_plot: bool = True,
+                              model_name: str = "model"
+                             ) -> dict:
     """
     Prueba de significancia estadística via Simulación Monte Carlo.
 
@@ -334,7 +336,7 @@ def monte_carlo_significance(model,
 
     ax.set_xlabel("Sharpe Ratio", fontsize=12)
     ax.set_ylabel("Frecuencia", fontsize=12)
-    ax.set_title(f"Monte Carlo — Distribución de Sharpe Aleatorio\n"
+    ax.set_title(f"Monte Carlo — {model_name} — Distribución de Sharpe Aleatorio\n"
                  f"N={n_simulations} simulaciones | Umbral BUY > {buy_threshold}",
                  fontsize=13)
     ax.legend(fontsize=10, loc="upper left")
@@ -343,7 +345,7 @@ def monte_carlo_significance(model,
     plt.tight_layout()
 
     if save_plot:
-        plot_path = ROOT_DIR / "monitoring" / "monte_carlo.png"
+        plot_path = ROOT_DIR / "monitoring" / f"monte_carlo_{model_name}.png"
         plot_path.parent.mkdir(exist_ok=True)
         plt.savefig(plot_path, dpi=150)
         print(f"\n  Gráfico guardado en {plot_path}")
@@ -364,15 +366,18 @@ def monte_carlo_significance(model,
 #----------------------------
 if __name__ == "__main__":
     from src.data.download_data import ingest
-    from src.features.engineering import build_features
-    from src.models.train import (load_multiple, split_data,
-                                  get_features, train_xgboost, train_random_forest)
+    from src.features.engineering import load_processed
+    from src.models.train import (split_data, get_features,
+                                  train_xgboost, train_random_forest)
     import pandas as pd
 
-    # 1. Carga de datos
-    tickers = ["AAPL", "MSFT", "GOOGL", "JPM", "SPY"]
-    from src.features.engineering import load_processed
+    # ── Configuración de umbrales ──────────────────────────────────────────
+    BUY_THRESHOLD = 0.55
+    SELL_THRESHOLD = 0.45
+    HORIZON = 10
 
+    # ── 1. Carga de datos ──────────────────────────────────────────────────
+    tickers = ["AAPL", "MSFT", "GOOGL", "JPM", "SPY"]
     dfs = []
     for ticker in tickers:
         df = load_processed(ticker)
@@ -381,70 +386,70 @@ if __name__ == "__main__":
 
     df_combined = pd.concat(dfs).sort_index()
 
-    # 2. Split
+    # ── 2. Split temporal ──────────────────────────────────────────────────
     train_df, val_df, test_df = split_data(df_combined)
     X_train, y_train = get_features(train_df)
     X_val, y_val = get_features(val_df)
 
-    # 3. Entrenar AMBOS Modelos
-    print("\n" + " " * 20)
-    print(" FASE 1: ENTRENAMIENTO DE MODELOS")
-    print("- " * 20)
+    # ── 3. Entrenamiento de modelos ────────────────────────────────────────
+    print("\n" + "=" * 60)
+    print("  FASE 1: ENTRENAMIENTO DE MODELOS")
+    print("=" * 60)
 
     print("\nEntrenando Random Forest...")
     rf_model = train_random_forest(X_train, y_train)
 
     print("\nEntrenando XGBoost...")
-    # XGBoost requiere validation set para el early stopping y regularización
     xgb_model = train_xgboost(X_train, y_train, X_val, y_val)
 
-    # Umbral Institucional Defensivo
-    THRESHOLD = 0.55
+    # ── 4. Set de evaluación: Bull Market (Test set SPY) ──────────────────
+    test_spy = test_df[test_df["ticker"] == "SPY"]
 
-    # =================================================================
-    # ESCENARIO 1: EL ESCUDO (Bear Market 2022 - Set de Validación)
-    # =================================================================
-    val_spy_2022 = val_df[(val_df["ticker"] == "SPY") &
-                          (val_df.index >= "2022-01-01") &
-                          (val_df.index <= "2022-12-31")]
+    print("\n" + "=" * 60)
+    print(f"  ESCENARIO: BULL MARKET")
+    print(f"  Período: {test_spy.index[0].date()} → {test_spy.index[-1].date()}")
+    print("=" * 60)
 
-    print("\n\n" + " " * 20)
-    print(f" ESCENARIO 1: BEAR MARKET ({val_spy_2022.index[0].date()} → {val_spy_2022.index[-1].date()})")
-    print(" -" * 20)
-
-    print("\n▶ EVALUANDO: RANDOM FOREST (Bear Market)")
-    res_bear_rf = run_backtest(rf_model, val_spy_2022, buy_threshold=THRESHOLD, sell_threshold=0.45)
-    if res_bear_rf:
-        monte_carlo_significance(rf_model, val_spy_2022, res_bear_rf["metrics"]["sharpe_ratio"],
-                                 n_simulations=1000, buy_threshold=THRESHOLD, save_plot=False)
-
-    print("\n" + "-" * 60)
-
-    print("\n EVALUANDO: XGBOOST (Bear Market)")
-    res_bear_xgb = run_backtest(xgb_model, val_spy_2022, buy_threshold=THRESHOLD, sell_threshold=0.45)
-    if res_bear_xgb:
-        monte_carlo_significance(xgb_model, val_spy_2022, res_bear_xgb["metrics"]["sharpe_ratio"],
-                                 n_simulations=1000, buy_threshold=THRESHOLD, save_plot=False)
-
-    # =================================================================
-    # ESCENARIO 2: EL MOTOR (Bull Market 2023+ - Set de Test)
-    # =================================================================
-    test_spy_bull = test_df[test_df["ticker"] == "SPY"]
-
-    print("\n\n" + "- " * 20)
-    print(f" ESCENARIO 2: BULL MARKET ({test_spy_bull.index[0].date()} → {test_spy_bull.index[-1].date()})")
-    print("- " * 20)
-
-    print("\n▶️ EVALUANDO: RANDOM FOREST (Bull Market)")
-    res_bull_rf = run_backtest(rf_model, test_spy_bull, buy_threshold=THRESHOLD, sell_threshold=0.45)
-    if res_bull_rf:
-        monte_carlo_significance(rf_model, test_spy_bull, res_bull_rf["metrics"]["sharpe_ratio"],
-                                 n_simulations=1000, buy_threshold=THRESHOLD, save_plot=False)
+    # ── 5. Random Forest — Bull Market ────────────────────────────────────
+    print("\n▶ EVALUANDO: RANDOM FOREST (Bull Market)")
+    res_rf = run_backtest(
+        rf_model,
+        test_spy,
+        buy_threshold=BUY_THRESHOLD,
+        sell_threshold=SELL_THRESHOLD,
+        horizon=HORIZON,
+    )
+    if res_rf:
+        monte_carlo_significance(
+            rf_model,
+            test_spy,
+            real_sharpe=res_rf["metrics"]["sharpe_ratio"],
+            n_simulations=1000,
+            buy_threshold=BUY_THRESHOLD,
+            horizon=HORIZON,
+            save_plot=True,
+            model_name="RandomForest",  # ← añadir
+        )
 
     print("\n" + "-" * 60)
 
-    print("\n EVALUANDO: XGBOOST (Bull Market)")
-    res_bull_xgb = run_backtest(xgb_model, test_spy_bull, buy_threshold=THRESHOLD, sell_threshold=0.45)
-    if res_bull_xgb:
-        monte_carlo_significance(xgb_model, test_spy_bull, res_bull_xgb["metrics"]["sharpe_ratio"],
-                                 n_simulations=1000, buy_threshold=THRESHOLD, save_plot=False)
+    # ── 6. XGBoost — Bull Market ──────────────────────────────────────────
+    print("\n▶ EVALUANDO: XGBOOST (Bull Market)")
+    res_xgb = run_backtest(
+        xgb_model,
+        test_spy,
+        buy_threshold=BUY_THRESHOLD,
+        sell_threshold=SELL_THRESHOLD,
+        horizon=HORIZON,
+    )
+    if res_xgb:
+        monte_carlo_significance(
+            xgb_model,
+            test_spy,
+            real_sharpe=res_xgb["metrics"]["sharpe_ratio"],
+            n_simulations=1000,
+            buy_threshold=BUY_THRESHOLD,
+            horizon=HORIZON,
+            save_plot=True,
+            model_name="XGBoost",  # ← añadir
+        )
