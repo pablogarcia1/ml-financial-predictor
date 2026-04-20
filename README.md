@@ -1,150 +1,142 @@
 # ML Financial Predictor v3.0  
-### Estudio crítico de Machine Learning en mercados financieros
+### A Critical Study of Machine Learning in Financial Markets
 
-Este proyecto implementa un pipeline completo de Machine Learning para predecir la dirección del ETF **SPY (S&P 500)** a un horizonte de 10 días, utilizando datos tipo **Panel (AAPL, MSFT, GOOGL, JPM, SPY)**. 
+This project implements a complete Machine Learning pipeline designed to predict the direction of the **SPY (S&P 500)** ETF over a 10-day horizon, utilizing **Panel Data (AAPL, MSFT, GOOGL, JPM, SPY)**.
 
-> **Definición del Target ($y_t$):** > El problema se formula como una clasificación binaria, donde la variable objetivo evalúa si el precio de cierre ($P$) será mayor en 10 días hábiles respecto al día actual ($t$):
-> $$y_t = \begin{cases} 1 & \text{si } P_{t+10} > P_t \text{ (Señal de Compra)} \\ 0 & \text{si } P_{t+10} \le P_t \text{ (Señal de Espera/Venta)} \end{cases}$$
+> **Target Definition ($y_t$):** > The problem is framed as a binary classification task. The target variable evaluates whether the closing price ($P$) will be higher in 10 business days relative to the current day ($t$):
+> $$y_t = \begin{cases} 1 & \text{if } P_{t+10} > P_t \text{ (Buy Signal)} \\ 0 & \text{if } P_{t+10} \le P_t \text{ (Wait/Sell Signal)} \end{cases}$$
 
-A diferencia de versiones anteriores, este repositorio no presenta una estrategia “ganadora”, sino un **análisis honesto y reproducible de por qué modelos aparentemente prometedores no logran generar edge estadístico real**.
-
----
-
-## ⚠️ Resultado Principal
-
-> Un modelo con **ROC-AUC ≈ 0.49** puede generar curvas de capital atractivas…  
-> pero **no necesariamente tiene poder predictivo real**.
+Unlike previous versions, this repository does not showcase a "winning" strategy. Instead, it offers an **honest and reproducible analysis of why seemingly promising models fail to generate real statistical edge**.
 
 ---
 
-## 📊 Evidencia Empírica
+## ⚠️ Main Finding
+
+> A model with **ROC-AUC ≈ 0.49** can generate attractive equity curves…  
+> but it **does not necessarily possess real predictive power**.
+
+---
+
+## 📊 Empirical Evidence
 
 ### 📈 Equity Curve — Bull Market (2023–2026)
 
 ![RF Bull](monitoring/img/medium_03_bull_equity_RF.png)
 ![XGB Bull](monitoring/img/medium_03_bull_equity_XG.png)
 
-- Crecimiento consistente  
-- Drawdowns controlados  
-- Aparente robustez  
-
-
-
-
-
+- Consistent growth  
+- Controlled drawdowns  
+- Apparent robustness  
 
 ---
 
-### 🎲 Monte Carlo — Test de Significancia
+### 🎲 Monte Carlo — Significance Test
 
 ![RF Monte Carlo](monitoring/img/monte_carlo_RandomForest.png)
 
-> ❌ **Resultado clave:**  
-> El rendimiento del modelo **no es estadísticamente significativo** frente a estrategias aleatorias.
+> ❌ **Key Result:** > The model's performance is **not statistically significant** when compared to random strategies.
 
 ---
 
+## 📉 The 2022 Bear Market Case: A False Positive
+> **Lesson Learned:** How Data Leakage can disguise itself as a "defensive strategy."
 
-## 📉 El Caso del Bear Market (2022): Un Falso Positivo
-> **Lección aprendida:** Cómo el Data Leakage puede disfrazarse de "estrategia defensiva".
-
-Inicialmente, el modelo mostraba una protección de capital sólida durante 2022. Sin embargo, tras una auditoría interna, **este resultado fue invalidado**.
+Initially, the model showed solid capital protection during 2022. However, after an internal audit, **this result was invalidated**.
 
 <details>
-<summary>🔍 Ver análisis del error estructural (Haz clic para expandir)</summary>
+<summary>🔍 View Structural Error Analysis (Click to expand)</summary>
 
-### ❌ El problema: Data Leakage a nivel de Régimen
-Aunque no había *lookahead bias* en las variables, el periodo de validación incluía datos de 2022 que el modelo ya había "visto" indirectamente, resultando en:
-- **Evaluación no Out-of-Sample:** Contaminación indirecta del conjunto de prueba.
-- **Sesgo de Supervivencia:** Ajuste involuntario a un régimen de mercado ya conocido.
+### ❌ The Problem: Regime-Level Data Leakage
+Although there was no *lookahead bias* in the features, the validation period included 2022 data that the model had "seen" indirectly, resulting in:
+- **Non-Out-of-Sample Evaluation:** Indirect contamination of the test set.
+- **Survivorship Bias:** Involuntary adjustment to a previously known market regime.
 
-### Conclusión 
-El desempeño defensivo **NO es válido**. Este hallazgo fue el motor para implementar el *Purging + Embargo* y las simulaciones de *Monte Carlo* que ahora definen esta versión.
+### Conclusion 
+The defensive performance is **NOT valid**. This finding was the catalyst for implementing *Purging + Embargo* and the *Monte Carlo* simulations that now define this version.
 </details>
 
-## 📂 Dataset y Partición de Datos
+## 📂 Dataset and Data Partitioning
 
-Para garantizar la integridad del estudio, se utilizó una separación cronológica estricta:
+To ensure the integrity of the study, a strict chronological split was used:
 
-* **Training & Validation (In-Sample):** Datos históricos hasta finales de 2022. Incluye el periodo del "Bear Market", el cual se utilizó para el ajuste de parámetros (lo que explica el sesgo detectado anteriormente).
-* **Test Set (Out-of-Sample):** Desde **enero de 2023 hasta la actualidad (2026)**. 
-    * Son datos que el modelo **nunca vio** durante el entrenamiento.
-    * Este periodo corresponde al **Bull Market** reciente.
-    * **Propósito:** Evaluar si el modelo realmente aprendió patrones predictivos o si solo estaba "memorizando" la volatilidad pasada.
+* **Training & Validation (In-Sample):** Historical data up to the end of 2022. Includes the "Bear Market" period, which was used for hyperparameter tuning (explaining the bias detected earlier).
+* **Test Set (Out-of-Sample):** From **January 2023 to the present (2026)**. 
+    * This is data the model **never saw** during training.
+    * This period corresponds to the recent **Bull Market**.
+    * **Purpose:** To evaluate if the model truly learned predictive patterns or was merely "memorizing" past volatility.
 
-> 💡 **Nota Crítica:** Aunque las gráficas de 2023+ muestran retornos positivos, el test de Monte Carlo demuestra que esos retornos son indistinguibles de la suerte, confirmando que el modelo no tiene *edge* real en datos fuera de muestra.
+> 💡 **Critical Note:** Although the 2023+ charts show positive returns, the Monte Carlo test proves that these returns are indistinguishable from luck, confirming that the model lacks real *edge* on out-of-sample data.
+
 ---
 
-## 🏗️ Arquitectura del Sistema
+## 🏗️ System Architecture
 
 ```text
 yfinance (OHLCV)
-   └─► Feature Engineering    # 26 indicadores técnicos + shift(1)
-         └─► División Temporal  # Purging + Embargo (10 días)
-               └─► Modelos      # Random Forest + XGBoost
-                     └─► Señales # Threshold 0.55 → BUY / HOLD
-                           └─► Backtest # Sin solapamiento (horizonte fijo)
-                                 └─► Evaluación estadística (Monte Carlo)
-
-
+   └─► Feature Engineering    # 26 Technical Indicators + shift(1)
+         └─► Temporal Splitting # Purging + Embargo (10 days)
+               └─► Models       # Random Forest + XGBoost
+                     └─► Signals # Threshold 0.55 → BUY / HOLD
+                           └─► Backtest # Non-overlapping (Fixed Horizon)
+                                 └─► Statistical Eval (Monte Carlo)
 ```
-## Hallazgos Clave
+## Key Findings
 
-### 1. La Paradoja del ROC-AUC
-* Un **ROC-AUC** bajo no implica automáticamente inutilidad, pero tampoco puede ignorarse.
-* En este caso, el modelo no logra superar al azar, incluso en la cola de alta probabilidad.
+### 1. The ROC-AUC Paradox
+* A low **ROC-AUC** does not automatically imply uselessness, but it cannot be ignored.
+* In this case, the model fails to outperform chance, even in the high-probability tail.
 
-### 2. Filtrar ≠ Predecir
-El modelo opera poco, reduce la exposición y produce métricas atractivas, pero:
-* **No genera señal predictiva real.**
+### 2. Filtering ≠ Predicting
+The model trades infrequently, reduces exposure, and produces attractive metrics, yet:
+* **It generates no real predictive signal.**
 
-### 3. Inestabilidad Temporal
-Ejemplo de precisión por año:
+### 3. Temporal Instability
+Example of yearly accuracy:
 * **2023:** ~61%
 * **2024:** ~81%
 * **2025:** ~69%
 * **2026:** ~28%
-* ⚠️ **Alta varianza:** El comportamiento no es robusto.
+* ⚠️ **High Variance:** The behavior is not robust.
 
-### 4. Overfitting estructural en series financieras
-Se implementaron técnicas de *Advances in Financial Machine Learning*:
-* Subsampling agresivo ($\alpha = 0.1$)
-* Control de leakage (purging + embargo)
-* Horizonte fijo sin solapamiento
+### 4. Structural Overfitting in Financial Series
+Techniques from *Advances in Financial Machine Learning* were implemented:
+* Aggressive subsampling ($\alpha = 0.1$)
+* Leakage control (Purging + Embargo)
+* Fixed non-overlapping horizon
 
-**Resultado:** El modelo no logra capturar una señal estable.
-
----
-
-## 🔬 Validación Rigurosa
-* **Sin lookahead bias:** Uso de `shift(1)`.
-* **Sin leakage:** Control estricto entre splits.
-* **Backtest:** Sin overlapping trades.
-* **Baseline:** Evaluación contra un modelo aleatorio.
-* **Monte Carlo:** 1,000 simulaciones.
+**Result:** The model fails to capture a stable signal.
 
 ---
 
-## ❗ Conclusión
-Este proyecto demuestra que **una equity curve atractiva no implica edge**. En ML financiero es extremadamente fácil:
-1. Sobreestimar resultados.
-2. Malinterpretar métricas.
-3. Encontrar patrones donde no existen.
+## 🔬 Rigorous Validation
+* **No lookahead bias:** Use of `shift(1)`.
+* **No leakage:** Strict control between splits.
+* **Backtest:** No overlapping trades.
+* **Baseline:** Evaluation against a random model.
+* **Monte Carlo:** 1,000 simulations.
+
+---
+
+## ❗ Conclusion
+This project demonstrates that **an attractive equity curve does not imply edge**. In Financial ML, it is extremely easy to:
+1. Overestimate results.
+2. Misinterpret metrics.
+3. Find patterns where none exist.
 
 ---
 
 ## 🚀 Roadmap
-* **Diferenciación fraccionaria:** Estacionariedad sin perder memoria.
-* **Feature clustering:** Reducción de colinealidad.
-* **Meta-labeling + bet sizing:** Separar dirección de tamaño.
-* **Regime detection:** Switching basado en VIX o volatilidad.
-* **Métricas de trading:** Evaluación más allá del ROC-AUC.
+* **Fractional Differentiation:** Achieving stationarity without losing memory.
+* **Feature Clustering:** Reducing collinearity.
+* **Meta-labeling + Bet Sizing:** Separating direction from size.
+* **Regime Detection:** Switching based on VIX or volatility.
+* **Advanced Trading Metrics:** Evaluation beyond ROC-AUC.
 
 ---
 
-## 📚 Referencias
+## 📚 References
 * **López de Prado, M. (2018).** *Advances in Financial Machine Learning*. Wiley.
 * **Davis, J., & Goadrich, M. (2006).** *The Relationship Between Precision-Recall and ROC Curves*.
 * **Chan, E. P. (2008).** *Quantitative Trading*.
 
-> **Nota Final:** Este repositorio no busca demostrar que el ML funciona en trading, sino qué tan fácil es creer que funciona cuando no lo hace.
+> **Final Note:** This repository does not aim to prove that ML works in trading, but rather how easy it is to believe it works when it does not.
