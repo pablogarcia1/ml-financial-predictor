@@ -12,16 +12,16 @@ Unlike previous versions, this repository does not showcase a "winning" strategy
 
 ---
 
-## ⚠️ Main Finding
+## Main Finding
 
 > A model with **ROC-AUC ≈ 0.49** can generate attractive equity curves…  
 > but it **does not necessarily possess real predictive power**.
 
 ---
 
-## 📊 Empirical Evidence
+##  Empirical Evidence
 
-### 📈 Equity Curve — Bull Market (2023–2026)
+### Equity Curve — Bull Market (2023–2026)
 
 ![RF Bull](monitoring/img/medium_03_bull_equity_RF.png)
 ![XGB Bull](monitoring/img/medium_03_bull_equity_XG.png)
@@ -32,7 +32,7 @@ Unlike previous versions, this repository does not showcase a "winning" strategy
 
 ---
 
-### 🎲 Monte Carlo — Significance Test
+### Monte Carlo — Significance Test
 
 ![RF Monte Carlo](monitoring/img/monte_carlo_RandomForest.png)
 
@@ -40,7 +40,7 @@ Unlike previous versions, this repository does not showcase a "winning" strategy
 
 ---
 
-## 📉 The 2022 Bear Market Case: A False Positive
+## The 2022 Bear Market Case: A False Positive
 > **Lesson Learned:** How Data Leakage can disguise itself as a "defensive strategy."
 
 Initially, the model showed solid capital protection during 2022. However, after an internal audit, **this result was invalidated**.
@@ -57,7 +57,7 @@ Although there was no *lookahead bias* in the features, the validation period in
 The defensive performance is **NOT valid**. This finding was the catalyst for implementing *Purging + Embargo* and the *Monte Carlo* simulations that now define this version.
 </details>
 
-## 📂 Dataset and Data Partitioning
+##  Dataset and Data Partitioning
 
 To ensure the integrity of the study, a strict chronological split was used:
 
@@ -110,7 +110,7 @@ Techniques from *Advances in Financial Machine Learning* were implemented:
 
 ---
 
-## 🔬 Rigorous Validation
+## Rigorous Validation
 * **No lookahead bias:** Use of `shift(1)`.
 * **No leakage:** Strict control between splits.
 * **Backtest:** No overlapping trades.
@@ -119,7 +119,7 @@ Techniques from *Advances in Financial Machine Learning* were implemented:
 
 ---
 
-## ❗ Conclusion
+##  Conclusion
 This project demonstrates that **an attractive equity curve does not imply edge**. In Financial ML, it is extremely easy to:
 1. Overestimate results.
 2. Misinterpret metrics.
@@ -127,12 +127,12 @@ This project demonstrates that **an attractive equity curve does not imply edge*
 
 ---
 
-## 🚀 Roadmap
+## Roadmap
 * **Fractional Differentiation:** Achieving stationarity without losing memory.
 * **Feature Clustering:** Reducing collinearity.
 * **Meta-labeling + Bet Sizing:** Separating direction from size.
 * **Regime Detection:** Switching based on VIX or volatility.
-* **Advanced Trading Metrics:** Evaluation beyond ROC-AUC.
+
 
 ---
 
