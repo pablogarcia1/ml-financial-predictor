@@ -256,7 +256,7 @@ def monte_carlo_significance(model,
     close       = test_df["Close"].values
     # Usamos saltos continuos (::) para que los retornos no se solapen
     log_returns = np.log(close[horizon::horizon] / close[::horizon][:-1])
-    n           = len(log_returns)
+    n = len(log_returns)
 
     # ── Vectorización matricial: N simulaciones x T señales ───────────────────
     # Genera matriz de señales aleatorias U(0,1) → shape (n_simulations, n)
@@ -308,47 +308,55 @@ def monte_carlo_significance(model,
     print(f"  P-Value (cola derecha): {p_value:.4f}")
 
     if p_value < 0.01:
-        verdict = "MUY SIGNIFICATIVO  (p < 0.01) — señal real"
+        verdict = "HIGHLY SIGNIFICANT (p < 0.01) — Alpha signal"
     elif p_value < 0.05:
-        verdict = "SIGNIFICATIVO      (p < 0.05) — señal real"
+        verdict = "STAT. SIGNIFICANT  (p < 0.05) — Alpha signal"
     elif p_value < 0.10:
-        verdict = "MARGINAL          (p < 0.10) — señal débil"
+        verdict = "MARGINALLY SIGNIF. (p < 0.10) — Weak signal"
     else:
-        verdict = "NO SIGNIFICATIVO   (p >= 0.10) — posible ruido"
+        verdict = "NOT SIGNIFICANT    (p >= 0.10) — Likely noise"
 
-    print(f"  Veredicto:              {verdict}")
-    print(f"{'═'*55}")
+    print(f"  Final Verdict:          {verdict}")
+    print(f"{'═' * 55}")
 
     # ── Gráfico ────────────────────────────────────────────────────────────────
     fig, ax = plt.subplots(figsize=(10, 6))
 
+    # --- HISTOGRAM OF RANDOM SHARPES ---
     ax.hist(sharpe_distribution, bins=50, color="#2E75B6", alpha=0.7,
-            edgecolor="white", label=f"Distribución aleatoria\n"
+            edgecolor="white", label=f"Random Distribution\n"
                                      f"μ={mu_rand:.3f}, σ={std_rand:.3f}")
 
+    # --- REAL MODEL PERFORMANCE ---
     ax.axvline(real_sharpe, color="#E74C3C", linewidth=2.5, linestyle="--",
-               label=f"Modelo real: {real_sharpe:.3f}\n"
+               label=f"Actual Model: {real_sharpe:.3f}\n"
                      f"Z={z_score:.3f} | P={p_value:.4f}\n"
-                     f"{verdict}")
+                     f"Verdict: {verdict}")
 
-    # Área de la cola derecha (Corregida)
+    # Right-tail area (Significance zone)
     ax.axvspan(real_sharpe, sharpe_distribution.max() + 1, alpha=0.15, color="#E74C3C")
 
     ax.set_xlabel("Sharpe Ratio", fontsize=12)
-    ax.set_ylabel("Frecuencia", fontsize=12)
-    ax.set_title(f"Monte Carlo — {model_name} — Distribución de Sharpe Aleatorio\n"
-                 f"N={n_simulations} simulaciones | Umbral BUY > {buy_threshold}",
-                 fontsize=13)
-    ax.legend(fontsize=10, loc="upper left")
+    ax.set_ylabel("Frequency", fontsize=12)
+
+    # Professional Title: Monte Carlo Significance Test
+    ax.set_title(f"Monte Carlo Test — {model_name} — Random Sharpe Distribution\n"
+                 f"N={n_simulations} Simulations | Buy Threshold > {buy_threshold}",
+                 fontsize=13, fontweight='bold')
+
+    ax.legend(fontsize=10, loc="upper left", frameon=True)
     ax.grid(alpha=0.3)
 
     plt.tight_layout()
 
     if save_plot:
+        # Asegúrate de que el veredicto también esté en inglés antes de graficar:
+        # verdict = "Statistically Significant" if p_value < 0.05 else "Not Significant"
+
         plot_path = ROOT_DIR / "monitoring" / f"monte_carlo_{model_name}.png"
         plot_path.parent.mkdir(exist_ok=True)
         plt.savefig(plot_path, dpi=150)
-        print(f"\n  Gráfico guardado en {plot_path}")
+        print(f"\n  Plot saved at {plot_path}")
 
     plt.close()
 
