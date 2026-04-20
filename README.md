@@ -2,8 +2,9 @@
 ### A Critical Study of Machine Learning in Financial Markets
 
 This project implements a complete Machine Learning pipeline designed to predict the direction of the **SPY (S&P 500)** ETF over a 10-day horizon, utilizing **Panel Data (AAPL, MSFT, GOOGL, JPM, SPY)**.
-
-> **Target Definition ($y_t$):** > The problem is framed as a binary classification task. The target variable evaluates whether the closing price ($P$) will be higher in 10 business days relative to the current day ($t$):
+> **Target Definition ($y_t$):**
+> The problem is framed as a binary classification task. The target variable evaluates whether the closing price ($P$) will be higher in 10 business days relative to the current day ($t$):
+>
 > $$y_t = \begin{cases} 1 & \text{if } P_{t+10} > P_t \text{ (Buy Signal)} \\ 0 & \text{if } P_{t+10} \le P_t \text{ (Wait/Sell Signal)} \end{cases}$$
 
 Unlike previous versions, this repository does not showcase a "winning" strategy. Instead, it offers an **honest and reproducible analysis of why seemingly promising models fail to generate real statistical edge**.
