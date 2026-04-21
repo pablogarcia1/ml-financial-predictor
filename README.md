@@ -1,5 +1,8 @@
-# ML Financial Predictor v3.0  
+# ML Financial Predictor v3.0
 ### A Critical Study of Machine Learning in Financial Markets
+> 📝 [Read the full technical write-up on Medium](https://medium.com/@jose.pablo.garcia.meza/i-built-an-ml-trading-system-that-learned-to-detect-its-own-lies-1c4772593da2)
+
+
 
 This project implements a complete Machine Learning pipeline designed to predict the direction of the **SPY (S&P 500)** ETF over a 10-day horizon, utilizing **Panel Data (AAPL, MSFT, GOOGL, JPM, SPY)**.
 > **Target Definition ($y_t$):**
